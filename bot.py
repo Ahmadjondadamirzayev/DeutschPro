@@ -8,6 +8,9 @@ A1 dan C2 gacha Lug'at (Vocabulary) va worthub.vercel.app rasmiy veb-sayti integ
 import asyncio
 import logging
 import sys
+import os
+import threading
+from flask import Flask
 
 # Windows konsolida UTF-8 simvollarini to'g'ri ko'rsatish
 if sys.platform.startswith("win"):
@@ -68,6 +71,20 @@ logger = logging.getLogger("GermanDudenBot")
 
 bot = Bot(token=config.BOT_TOKEN)
 dp = Dispatcher()
+
+
+# ==========================================
+# RENDER UCHUN FLASK WEB SERVER (PORT OCHISH)
+# ==========================================
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "DeutschPro Bot is running and active!"
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 
 # ==========================================
@@ -539,253 +556,3 @@ async def cb_quiz_answer(call: CallbackQuery):
         )
     else:
         result_text = (
-            f"{header}❌ <b>NOTO'G'RI JAVOB!</b>\n\n"
-            f"❓ <i>Savol:</i>\n{res['question_text']}\n\n"
-            f"⚠️ <b>Nima uchun siz tanlagan javob xato?</b>\n{res['wrong_reason']}\n\n"
-            f"{res['proof']}\n\n"
-            "💡 <i>Ushbu qoidani eslab qoling, test oxirida xatolaringizni to'g'rilash imkoni bo'ladi!</i>"
-        )
-
-    await call.message.edit_text(
-        result_text,
-        reply_markup=get_answer_result_keyboard(res["is_last"], topic_id),
-        parse_mode=ParseMode.HTML
-    )
-    await call.answer()
-
-
-@dp.callback_query(F.data == "quiz:next")
-async def cb_quiz_next(call: CallbackQuery):
-    """Keyingi savolga o'tish"""
-    user_id = call.from_user.id
-    has_next = advance_question(user_id)
-
-    if not has_next:
-        await cb_quiz_summary(call)
-        return
-
-    session = get_current_session(user_id)
-    idx = session["current_idx"]
-    q = session["questions"][idx]
-    topic_id = session.get("topic_id", "random")
-
-    prefix = "🛠 <b>XATONI TO'G'RILASH:</b> " if session.get("is_fixing_mistakes") else ""
-
-    if session.get("mode") == "goethe_einstufung":
-        header_title = f"{prefix}🏆 <b>Gyote Daraja Aniqlovchi Sinov ({idx + 1}/{len(session['questions'])})</b>\n📌 <i>Daraja: {q.get('exam_name')}</i>\n"
-    elif session.get("mode") == "goethe":
-        part_text = f"📌 <i>{q.get('part')}</i>\n" if q.get("part") else ""
-        header_title = f"{prefix}🎓 <b>{q.get('exam_name', session['topic_title'])} ({idx + 1}/{len(session['questions'])})</b>\n{part_text}"
-    elif session.get("mode") == "vocab":
-        header_title = f"{prefix}📖 <b>{session['topic_title']} ({idx + 1}/{len(session['questions'])})</b>\n"
-    else:
-        topic_info = f"📌 <i>Mavzu: {q.get('topic_title')}</i>\n" if q.get("topic_title") else ""
-        header_title = f"{prefix}📝 <b>{session['topic_title']} — Mashq ({idx + 1}/{len(session['questions'])})</b>\n{topic_info}"
-
-    text = (
-        f"{header_title}\n"
-        f"❓ <b>Topshiriq / Savol:</b>\n{q['question']}\n\n"
-        "<i>To'g'ri variantni tanlang:</i>"
-    )
-    await call.message.edit_text(
-        text,
-        reply_markup=get_active_quiz_keyboard(q["options"], topic_id),
-        parse_mode=ParseMode.HTML
-    )
-    await call.answer()
-
-
-@dp.callback_query(F.data == "quiz:summary")
-async def cb_quiz_summary(call: CallbackQuery):
-    """Test yakuni va natijalar xulosasi (Goethe, Vocab va Duden baholash tizimi bilan)"""
-    user_id = call.from_user.id
-    session = get_current_session(user_id)
-
-    if not session:
-        await call.answer("Test yakunlangan.", show_alert=True)
-        return
-
-    total = len(session["questions"])
-    correct = session["correct_count"]
-    mistakes_count = len(session["mistakes"])
-    percent = int((correct / total) * 100) if total > 0 else 0
-
-    topic_id = session.get("topic_id", "random")
-    level = session.get("level", "A1")
-    mode = session.get("mode", "topic")
-    is_fixing = session.get("is_fixing_mistakes", False)
-
-    if is_fixing:
-        if mistakes_count == 0:
-            summary_text = (
-                "🏆 <b>TABRIKLAYMIZ! BARCHA XATOLARINGIZNI TUZATDINGIZ!</b> 🎉\n\n"
-                f"✅ Barcha {total} ta xato savolga to'g'ri javob berdingiz.\n"
-                "Endi bu mavzuni to'liq o'zlashtirdingiz!"
-            )
-        else:
-            summary_text = (
-                "🛠 <b>XATOLAR USTIDA ISHLASH NATIJASI:</b>\n\n"
-                f"✅ To'g'rilangan javoblar: <b>{correct} ta</b>\n"
-                f"⚠️ Hali xato qolgan: <b>{mistakes_count} ta</b>\n\n"
-                "Yana bir bor xatolarni to'g'rilash tugmasini bosib, ularni nolga yetkazing!"
-            )
-    elif mode == "goethe_einstufung":
-        if correct >= 6:
-            estimated = "🟣 <b>C2 — Oliy Daraja (Großes Deutsches Sprachdiplom)</b>"
-        elif correct == 5:
-            estimated = "🔴 <b>C1 — Mukammal Akademik Daraja</b>"
-        elif correct == 4:
-            estimated = "🟠 <b>B2 — O'rtadan Yuqori / Professional Daraja</b>"
-        elif correct == 3:
-            estimated = "🟡 <b>B1 — Mustaqil O'rta Daraja</b>"
-        elif correct == 2:
-            estimated = "🔵 <b>A2 — Elementar Muloqot Darajasi</b>"
-        else:
-            estimated = "🟢 <b>A1 — Boshlang'ich Daraja</b>"
-
-        summary_text = (
-            "🏆 <b>GYOTE DARAJA ANIQSH TESTI NATIJASI</b>\n\n"
-            f"🎯 Jami topshiriqlar: {total} ta (A1 dan C2 gacha)\n"
-            f"✅ To'g'ri javoblar: <b>{correct} ta</b>\n"
-            f"❌ Xatolaringiz: <b>{mistakes_count} ta</b>\n\n"
-            f"📊 <b>Sizning baholangan Gyote darajangiz:</b>\n{estimated}\n\n"
-            f"🌐 Qo'shimcha materiallar: <a href='{config.WEBSITE_URL}'>worthub.vercel.app</a>\n"
-            "💡 <i>Goethe-Institut xalqaro imtihonlarida har bir darajadan o'tish uchun kamida 60% ball to'plash talab etiladi.</i>"
-        )
-    elif mode == "goethe":
-        passed = percent >= 60
-        status_badge = "🎉 <b>TABRIKLAYMIZ! SIZ GYOTE IMTIHONIDAN O'TDINGIZ!</b> ✅" if passed else "⚠️ <b>IMTIHONDAN O'TISH UCHUN KAMIDA 60% TALAB QILINADI!</b>"
-        summary_text = (
-            f"🏛 <b>{session['topic_title']} — IMTIHON NATIJASI</b>\n\n"
-            f"{status_badge}\n\n"
-            f"🎯 Jami topshiriqlar: {total} ta\n"
-            f"✅ To'g'ri javoblar: {correct} ta\n"
-            f"❌ Xatolar: {mistakes_count} ta\n"
-            f"📈 Ball: <b>{percent}%</b> (Goethe normasi: 60%+)\n\n"
-            + ("Barakalla! Siz ushbu darajadagi xalqaro imtihon me'yorini muvaffaqiyatli bajardingiz!" if passed else
-               f"Sizda {mistakes_count} ta xato bor. Pastdagi <b>'🛠 Xatolarni To'g'rilash'</b> tugmasini bosib, xatolaringiz ustida ishlang!")
-        )
-    elif mode == "vocab":
-        summary_text = (
-            f"📖 <b>{session['topic_title']} — NATIJASI</b>\n\n"
-            f"🎯 Jami so'zlar: {total} ta\n"
-            f"✅ To'g'ri topilgan: <b>{correct} ta</b>\n"
-            f"❌ Xatolar: <b>{mistakes_count} ta</b>\n"
-            f"📈 O'zlashtirish: <b>{percent}%</b>\n\n"
-            + ("Barakalla! So'z boyligingiz juda yaxshi!" if mistakes_count == 0 else
-               f"Sizda {mistakes_count} ta xato bor. <b>'🛠 Xatolarni To'g'rilash'</b> tugmasini bosing va ularni to'g'rilab oling!")
-        )
-    else:
-        if mistakes_count == 0:
-            summary_text = (
-                "🏆 <b>A'LO NATIJA! (100%)</b> 🌟\n\n"
-                f"📘 <b>Mavzu:</b> {session['topic_title']}\n"
-                f"🎯 <b>Jami savollar:</b> {total} ta\n"
-                f"✅ <b>To'g'ri javoblar:</b> {correct} ta\n"
-                f"❌ <b>Xatolar:</b> 0 ta!\n\n"
-                "Barakalla! Siz ushbu mavzuni Duden qoidalari bo'yicha mukammal egalladingiz!"
-            )
-        else:
-            summary_text = (
-                "📊 <b>TEST NATIJANGIZ:</b>\n\n"
-                f"📘 <b>Mavzu:</b> {session['topic_title']}\n"
-                f"🎯 <b>Jami savollar:</b> {total} ta\n"
-                f"✅ <b>To'g'ri javoblar:</b> {correct} ta\n"
-                f"❌ <b>Xatolaringiz:</b> {mistakes_count} ta\n"
-                f"📈 <b>O'zlashtirish darajasi:</b> {percent}%\n\n"
-                f"💡 <i>Sizda {mistakes_count} ta xato bor. Pastdagi <b>'🛠 Xatolarni To'g'rilash'</b> "
-                "tugmasini bosing va faqat adashgan savollaringizni qaytadan ishlab, mukammal natijaga erishing!</i>"
-            )
-
-    await call.message.edit_text(
-        summary_text,
-        reply_markup=get_quiz_summary_keyboard(topic_id, level, mistakes_count, is_fixing),
-        parse_mode=ParseMode.HTML,
-        disable_web_page_preview=True
-    )
-    await call.answer()
-
-
-@dp.callback_query(F.data == "quiz:fix_mistakes")
-async def cb_quiz_fix_mistakes(call: CallbackQuery):
-    """Xatolar ustida ishlash rejimini boshlash"""
-    user_id = call.from_user.id
-    session = start_fixing_mistakes(user_id)
-
-    if not session or not session.get("questions"):
-        await call.answer("To'g'rilanadigan xatolar topilmadi!", show_alert=True)
-        return
-
-    q = session["questions"][0]
-    total_mistakes = len(session["questions"])
-
-    text = (
-        f"🛠 <b>XATOLAR USTIDA ISHLASH (1/{total_mistakes})</b>\n\n"
-        "Keling, avval adashgan savollaringizni qayta tahlil qilib, to'g'rilaymiz:\n\n"
-        f"❓ <b>Topshiriq / Savol:</b>\n{q['question']}\n\n"
-        "<i>To'g'ri variantni tanlang:</i>"
-    )
-    await call.message.edit_text(
-        text,
-        reply_markup=get_active_quiz_keyboard(q["options"], session.get("topic_id", "random")),
-        parse_mode=ParseMode.HTML
-    )
-    await call.answer()
-
-
-# ==========================================
-# QIDIRUV VA MATN HANDLERI
-# ==========================================
-
-@dp.message(F.text)
-async def handle_user_text(message: Message):
-    query = message.text.strip()
-    results = search_topics(query)
-
-    if results:
-        count = len(results)
-        text = (
-            f"🔍 <b>'{query}' bo'yicha {count} ta dars topildi!</b>\n\n"
-            "Quyidagi mavzulardan birini tanlab, Duden qoidasini va test mashqlarini o'rganishingiz mumkin:"
-        )
-        await message.answer(
-            text,
-            reply_markup=get_search_results_keyboard(results),
-            parse_mode=ParseMode.HTML
-        )
-    else:
-        text = (
-            f"😔 <b>'{query}' bo'yicha aniq mavzu topilmadi.</b>\n\n"
-            "Quyidagi darajalardan birini tanlab, barcha darslarni ko'rishingiz mumkin, "
-            f"yoki bizning saytimizga tashrif buyuring: <a href='{config.WEBSITE_URL}'>worthub.vercel.app</a>"
-        )
-        await message.answer(
-            text,
-            reply_markup=get_levels_inline_keyboard(),
-            parse_mode=ParseMode.HTML,
-            disable_web_page_preview=True
-        )
-
-
-# ==========================================
-# ASOSIY STARTUP
-# ==========================================
-
-async def main():
-    logger.info("Nemis Tili Duden, Goethe & Worthub Boti ishga tushmoqda...")
-    logger.info(f"Rasmiy Veb-Sayt: {config.WEBSITE_URL}")
-    logger.info(f"Jami Duden darslari: {len(ALL_TOPICS)} ta")
-
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    try:
-        await dp.start_polling(bot)
-    finally:
-        await bot.session.close()
-
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot to'xtatildi.")
