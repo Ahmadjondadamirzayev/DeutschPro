@@ -9,12 +9,12 @@ app = Flask(__name__)
 def home():
     return "DeutschPro Bot is active!"
 
-# Botni fonda xatosiz ishga tushirish
 def start_bot():
     try:
         asyncio.run(telegram_bot_module.main())
     except Exception as e:
         print(f"Bot xatoligi: {e}")
 
-# Gunicorn yonishi bilan bot fonda ishlay boshlaydi
-threading.Thread(target=start_bot, daemon=True).start()
+# Gunicorn ishga tushishi bilan botni fonda yurgizamiz
+bot_thread = threading.Thread(target=start_bot, daemon=True)
+bot_thread.start()
