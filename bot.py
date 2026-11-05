@@ -1,27 +1,26 @@
-"""
-Nemis Tili Duden Grammatika, Goethe-Institut (A1-C2), Lug'at va Worthub Sayti Boti
-Muallif: Antigravity AI
-...
-"""
-import asyncio
-import logging
-import sys
-import os
-import threading
-from flask import Flask
+# ==========================================
+# ASOSIY STARTUP (BOT VA WEB SERVER BIRGA)
+# ==========================================
 
-# Windows konsolida UTF-8 simvollarini to'g'ri ko'rsatish
-if sys.platform.startswith("win"):
+async def main():
+    logger.info("Nemis Tili Duden, Goethe & Worthub Boti ishga tushmoqda...")
+    logger.info(f"Rasmiy Veb-Sayt: {config.WEBSITE_URL}")
+    logger.info(f"Jami Duden darslari: {len(ALL_TOPICS)} ta")
+
+    # Flask veb-serverni alohida oqimda (background thread) ishga tushiramiz (UptimeRobot uchun)
+    threading.Thread(target=run_web_server, daemon=True).start()
+    logger.info("Render uchun HTTP web-server portni tinglashni boshladi.")
+
+    await bot.delete_webhook(drop_pending_updates=True)
+
     try:
-        sys.stdout.reconfigure(encoding="utf-8")
-        sys.stderr.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+        await dp.start_polling(bot)
+    finally:
+        await bot.session.close()
 
-from aiogram import Bot, Dispatcher, F
-from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery
 
-import config
-# ... (qolgan importlar va bot = Bot(...) / dp = Dispatcher() qismlari)
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.info("Bot to'xtatildi.")
