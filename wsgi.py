@@ -1,22 +1,21 @@
 import threading
 import asyncio
-import os
 from flask import Flask
+import bot as telegram_bot_module
 
-# Flask veb-serverini yaratamiz (Render port talabini qondirish uchun)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "DeutschPro Bot is running and active!"
 
-# Telegram botni alohida fon oqimida (background thread) ishga tushiramiz
-def run_telegram_bot():
-    import bot
+# Botni alohida oqimda ishga tushiruvchi funksiya
+def start_bot():
     try:
-        asyncio.run(bot.main())
+        asyncio.run(telegram_bot_module.main())
     except Exception as e:
-        print(f"Bot xatoligi: {e}")
+        print(f"Bot ishga tushishida xatolik: {e}")
 
-# Gunicorn ishga tushishi bilan veb-server yonadi va botni fonda yoqadi
-threading.Thread(target=run_telegram_bot, daemon=True).start()
+# Gunicorn ishga tushishi bilan botni fonda yurgizamiz
+bot_thread = threading.Thread(target=start_bot, daemon=True)
+bot_thread.start()
