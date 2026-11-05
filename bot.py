@@ -1,27 +1,27 @@
-@dp.callback_query(F.data.startswith("vocab:list:"))
-async def cb_vocab_list(call: CallbackQuery):
-    """Muayyan darajadagi so'zlar ro'yxatini ko'rsatish"""
-    level = call.data.split(":")[2]
-    words = get_words_by_level(level)
+"""
+Nemis Tili Duden Grammatika, Goethe-Institut (A1-C2), Lug'at va Worthub Sayti Boti
+Muallif: Antigravity AI
+...
+"""
+import asyncio
+import logging
+import sys
+import os
+import threading
+from flask import Flask
 
-    if not words:
-        await call.answer("So'zlar topilmadi.", show_alert=True)
-        return
+# Windows konsolida UTF-8 simvollarini to'g'ri ko'rsatish
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
-    text_parts = [f"📖 <b>{level} DARAJASI ASOSIY SO'ZLARI:</b>\n"]
-    for i, w in enumerate(words, 1):
-        plural_val = w.get('plural')
-        plural_info = f" ({plural_val})" if plural_val and plural_val != "-" else ""
-        text_parts.append(
-            f"<b>{i}. {w['word']}{plural_info}</b> — {w['translation']}\n"
-            f"   💡 <i>\"{w['example']}\"</i>\n"
-            f"   🇺🇿 <i>{w['example_uz']}</i>\n"
-        )
+from aiogram import Bot, Dispatcher, F
+from aiogram.enums import ParseMode
+from aiogram.filters import CommandStart, Command
+from aiogram.types import Message, CallbackQuery
 
-    text = "\n".join(text_parts)
-    await call.message.edit_text(
-        text,
-        reply_markup=get_vocab_levels_inline_keyboard(),
-        parse_mode=ParseMode.HTML
-    )
-    await call.answer()
+import config
+# ... (qolgan importlar va bot = Bot(...) / dp = Dispatcher() qismlari)
