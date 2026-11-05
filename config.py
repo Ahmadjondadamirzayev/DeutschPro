@@ -4,7 +4,7 @@ Telegram Bot Konfiguratsiya Fayli
 import os
 
 # Telegram Bot Tokeni
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8445338840:AAEsPBIIkZYZap_BokRfhmOi9JWXcH6aiIQ")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8445338840:AAHkGFT7-kwHogwOrI91FoLUf48Eh9vadVo")
 
 # Bot haqida ma'lumot
 BOT_TITLE = "Nemis Tili Duden Grammatika va Goethe Boti"
